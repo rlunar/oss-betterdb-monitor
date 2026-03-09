@@ -48,7 +48,7 @@ export class TenantService {
     const dbSchema = `tenant_${subdomain.replace(/-/g, '_')}`;
 
     // Use provided imageTag, fall back to env var, or use hardcoded default
-    const imageTag = data.imageTag || process.env.DEFAULT_IMAGE_TAG || 'v0.6.0';
+    const imageTag = data.imageTag || process.env.DEFAULT_IMAGE_TAG || 'v0.7.0';
 
     const tenant = await this.prisma.tenant.create({
       data: {
