@@ -1,14 +1,25 @@
 import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
-import { StoragePort, KeyPatternSnapshot } from '@app/common/interfaces/storage-port.interface';
+import { StoragePort, KeyPatternSnapshot, HotKeyEntry, HotKeyQueryOptions } from '@app/common/interfaces/storage-port.interface';
 import { MultiConnectionPoller, ConnectionContext } from '@app/common/services/multi-connection-poller';
 import { ConnectionRegistry } from '@app/connections/connection-registry.service';
 import { LicenseService } from '@proprietary/license/license.service';
+import { Tier } from '@proprietary/license/types';
 import { randomUUID } from 'crypto';
+
+const HOT_KEYS_TOP_N = 50;
+
+/** Retention in days per tier. null = keep indefinitely. */
+const TIER_RETENTION_DAYS: Record<Tier, number | null> = {
+  [Tier.community]: 7,
+  [Tier.pro]: 30,
+  [Tier.enterprise]: null,
+};
 
 @Injectable()
 export class KeyAnalyticsService extends MultiConnectionPoller implements OnModuleInit {
   protected readonly logger = new Logger(KeyAnalyticsService.name);
   private isRunning = new Map<string, boolean>();
+  private pruneHandle: NodeJS.Timeout | null = null;
 
   private readonly sampleSize: number;
   private readonly scanBatchSize: number;
@@ -40,10 +51,41 @@ export class KeyAnalyticsService extends MultiConnectionPoller implements OnModu
     );
 
     this.start();
+
+    const pruneIntervalMs = 24 * 60 * 60 * 1000;
+    this.pruneHandle = setInterval(() => this.pruneOldData(), pruneIntervalMs);
+  }
+
+  private async pruneOldData(): Promise<void> {
+    try {
+      const retentionDays = TIER_RETENTION_DAYS[this.license.getLicenseTier()];
+      if (retentionDays === null) {
+        this.logger.debug('Key Analytics prune skipped: unlimited retention (enterprise tier)');
+        return;
+      }
+      const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+      const [deletedSnapshots, deletedHotKeys] = await Promise.all([
+        this.storage.pruneOldKeyPatternSnapshots(cutoff),
+        this.storage.pruneOldHotKeys(cutoff),
+      ]);
+      this.logger.log(
+        `Key Analytics prune (${this.license.getLicenseTier()} tier, ${retentionDays}d retention): removed ${deletedSnapshots} pattern snapshots, ${deletedHotKeys} hot key entries older than ${new Date(cutoff).toISOString()}`,
+      );
+    } catch (err) {
+      this.logger.error(`Key Analytics prune failed: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   protected onConnectionRemoved(connectionId: string): void {
     this.isRunning.delete(connectionId);
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    if (this.pruneHandle) {
+      clearInterval(this.pruneHandle);
+      this.pruneHandle = null;
+    }
+    await super.onModuleDestroy();
   }
 
   protected async pollConnection(ctx: ConnectionContext): Promise<void> {
@@ -125,6 +167,49 @@ export class KeyAnalyticsService extends MultiConnectionPoller implements OnModu
 
       await this.storage.saveKeyPatternSnapshots(snapshots, ctx.connectionId);
 
+      // Collect hot keys from per-key pipeline data
+      if (result.keyDetails && result.keyDetails.length > 0) {
+        const capturedAt = Date.now();
+        const lfuKeys: Array<typeof result.keyDetails[number]> = [];
+        const idletimeKeys: Array<typeof result.keyDetails[number]> = [];
+
+        for (const kd of result.keyDetails) {
+          if (kd.freqScore !== null) {
+            lfuKeys.push(kd);
+          } else if (kd.idleSeconds !== null) {
+            idletimeKeys.push(kd);
+          }
+        }
+
+        // LFU: descending by freqScore
+        lfuKeys.sort((a, b) => (b.freqScore ?? 0) - (a.freqScore ?? 0));
+        // IDLETIME: ascending by idleSeconds (lower = more recently accessed)
+        idletimeKeys.sort((a, b) => (a.idleSeconds ?? 0) - (b.idleSeconds ?? 0));
+
+        // LFU keys rank above all IDLETIME keys
+        const ranked = [...lfuKeys, ...idletimeKeys].slice(0, HOT_KEYS_TOP_N);
+
+        const hotKeys: HotKeyEntry[] = ranked.map((kd, idx) => {
+          const isLfu = kd.freqScore !== null;
+          return {
+            id: randomUUID(),
+            keyName: kd.keyName,
+            connectionId: ctx.connectionId,
+            capturedAt,
+            signalType: isLfu ? 'lfu' as const : 'idletime' as const,
+            freqScore: isLfu ? (kd.freqScore ?? undefined) : undefined,
+            idleSeconds: !isLfu ? (kd.idleSeconds ?? undefined) : undefined,
+            memoryBytes: kd.memoryBytes ?? undefined,
+            ttl: kd.ttl ?? undefined,
+            rank: idx + 1,
+          };
+        });
+
+        if (hotKeys.length > 0) {
+          await this.storage.saveHotKeys(hotKeys, ctx.connectionId);
+        }
+      }
+
       const duration = Date.now() - startTime;
       this.logger.log(
         `Key Analytics (${ctx.connectionName}): sampled ${result.scanned}/${result.dbSize} keys (${(samplingRatio * 100).toFixed(1)}%), ` +
@@ -154,6 +239,10 @@ export class KeyAnalyticsService extends MultiConnectionPoller implements OnModu
 
   async getPatternTrends(pattern: string, startTime: number, endTime: number, connectionId?: string) {
     return this.storage.getKeyPatternTrends(pattern, startTime, endTime, connectionId);
+  }
+
+  async getHotKeys(options?: HotKeyQueryOptions): Promise<HotKeyEntry[]> {
+    return this.storage.getHotKeys(options);
   }
 
   async pruneOldSnapshots(cutoffTimestamp: number, connectionId?: string): Promise<number> {
