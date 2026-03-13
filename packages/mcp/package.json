@@ -1,6 +1,7 @@
 {
   "name": "@betterdb/mcp",
-  "version": "0.1.0",
+  "mcpName": "io.github.betterdb-inc/monitor",
+  "version": "0.1.1",
   "description": "BetterDB MCP server - Valkey observability for Claude Code and other MCP clients",
   "type": "module",
   "main": "dist/index.js",
