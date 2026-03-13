@@ -7,12 +7,12 @@
     "source": "github",
     "subfolder": "packages/mcp"
   },
-  "version": "0.1.1",
+  "version": "0.1.3",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@betterdb/mcp",
-      "version": "0.1.1",
+      "version": "0.1.3",
       "transport": {
         "type": "stdio"
       },
