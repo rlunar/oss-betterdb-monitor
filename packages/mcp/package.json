@@ -1,8 +1,21 @@
 {
   "name": "@betterdb/mcp",
   "mcpName": "io.github.BetterDB-inc/monitor",
-  "version": "0.1.3",
-  "description": "BetterDB MCP server - Valkey observability for Claude Code and other MCP clients",
+  "version": "0.1.4",
+  "description": "BetterDB MCP server - Valkey and Redis observability for Claude Code and other MCP clients",
+  "keywords": [
+    "valkey",
+    "redis",
+    "mcp",
+    "observability",
+    "monitoring",
+    "database",
+    "slowlog",
+    "commandlog",
+    "hot-keys",
+    "anomaly-detection",
+    "cluster"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "bin": {

@@ -4,7 +4,7 @@ Give your AI assistant deep visibility into your Valkey and Redis databases. The
 
 ## Why BetterDB?
 
-BetterDB is a Valkey-first monitoring and observability platform providing real-time dashboards, anomaly detection, and operational intelligence for your Valkey and Redis deployments. Unlike tools that only show a live snapshot, BetterDB persists historical metrics, slowlogs, and audit trails — so you can investigate what happened yesterday, not just what's happening now.
+BetterDB is a monitoring and observability platform built for Valkey and Redis providing real-time dashboards, anomaly detection, and operational intelligence for your Valkey and Redis deployments. Unlike tools that only show a live snapshot, BetterDB persists historical metrics, slowlogs, and audit trails — so you can investigate what happened yesterday, not just what's happening now.
 
 Key capabilities exposed through MCP:
 
