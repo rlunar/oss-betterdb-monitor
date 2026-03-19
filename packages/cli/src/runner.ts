@@ -27,33 +27,42 @@ export function mapConfigToEnv(
     // Static directory for bundled web assets
     BETTERDB_STATIC_DIR: staticDir,
 
-    // Database connection
-    DB_HOST: config.database.host,
-    DB_PORT: String(config.database.port),
-    DB_USERNAME: config.database.username,
-    DB_PASSWORD: config.database.password,
-    DB_TYPE: config.database.type,
+    // Database connection — environment variables take precedence over saved config
+    DB_HOST: process.env.DB_HOST ?? config.database.host,
+    DB_PORT: process.env.DB_PORT ?? String(config.database.port),
+    DB_USERNAME: process.env.DB_USERNAME ?? config.database.username,
+    DB_PASSWORD: process.env.DB_PASSWORD ?? config.database.password,
+    DB_TYPE: process.env.DB_TYPE ?? config.database.type,
 
     // Storage configuration
-    STORAGE_TYPE: config.storage.type,
+    STORAGE_TYPE: process.env.STORAGE_TYPE ?? config.storage.type,
 
-    // Application settings
-    PORT: String(config.app.port),
+    // Application settings — environment variables take precedence over saved config
+    PORT: process.env.PORT ?? String(config.app.port),
     ANOMALY_DETECTION_ENABLED: config.app.anomalyDetection ? 'true' : 'false',
   };
 
   // Add SQLite path if configured
-  if (config.storage.type === 'sqlite' && config.storage.sqlitePath) {
-    env.STORAGE_SQLITE_FILEPATH = expandPath(config.storage.sqlitePath);
+  if (env.STORAGE_TYPE === 'sqlite') {
+    const sqlitePath = process.env.STORAGE_SQLITE_FILEPATH
+      || (config.storage.sqlitePath ? expandPath(config.storage.sqlitePath) : undefined);
+    if (sqlitePath) {
+      env.STORAGE_SQLITE_FILEPATH = sqlitePath;
+    }
   }
 
   // Add PostgreSQL URL if configured
-  if (config.storage.type === 'postgres' && config.storage.postgresUrl) {
-    env.STORAGE_URL = config.storage.postgresUrl;
+  if (env.STORAGE_TYPE === 'postgres' || env.STORAGE_TYPE === 'postgresql') {
+    const postgresUrl = process.env.STORAGE_URL || config.storage.postgresUrl;
+    if (postgresUrl) {
+      env.STORAGE_URL = postgresUrl;
+    }
   }
 
   // Add license key if configured
-  if (config.app.licenseKey) {
+  if (process.env.BETTERDB_LICENSE_KEY) {
+    env.BETTERDB_LICENSE_KEY = process.env.BETTERDB_LICENSE_KEY;
+  } else if (config.app.licenseKey) {
     env.BETTERDB_LICENSE_KEY = config.app.licenseKey;
   }
 
