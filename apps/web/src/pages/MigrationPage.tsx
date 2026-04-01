@@ -85,7 +85,7 @@ export function MigrationPage() {
 
   const canExecute = hasFeature(Feature.MIGRATION_EXECUTION);
   const blockingCount = job?.blockingCount ?? 0;
-  const [executionMode, setExecutionMode] = useState<ExecutionMode>('redis_shake');
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>('command');
 
   // Issue 1 + 4: confirmation dialog state
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -233,8 +233,8 @@ export function MigrationPage() {
                   onChange={(e) => setExecutionMode(e.target.value as ExecutionMode)}
                   className="text-sm border rounded-md px-2 py-1 bg-background"
                 >
-                  <option value="redis_shake">DUMP/RESTORE (RedisShake)</option>
                   <option value="command">Command-based (cross-version compatible)</option>
+                  <option value="redis_shake">DUMP/RESTORE (RedisShake)</option>
                 </select>
               </div>
             )}
