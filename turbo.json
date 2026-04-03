@@ -4,6 +4,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": ["POSTHOG_API_KEY", "POSTHOG_HOST"],
       "outputs": ["dist/**", ".next/**", "build/**"]
     },
     "dev": {
